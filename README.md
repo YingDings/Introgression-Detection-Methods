@@ -8,6 +8,3 @@ Anton Suvorov, Celine Scornavacca, M Stanley Fujimoto, Paul Bodily, Mark Clement
 
 example.pdf: This is a example file
 
-Citations
-
-丁颖，纪繁迪，黄华腾。物种树构建后的基因渗入检验方法。（待定）
