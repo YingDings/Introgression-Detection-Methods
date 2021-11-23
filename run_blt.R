@@ -40,7 +40,7 @@ blt<-function(triplet,sptree,gene_trees){
 }
 
 
-wilcox.text<-function(result,triplet){
+wilcox.test<-function(result,triplet){
   counts<-as.data.frame(table(result$outgroup))
   concor<-max(triplet)
   concor_count<-counts[counts$Var1%in%concor,]
