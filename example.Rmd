@@ -1,0 +1,286 @@
+---
+title: "物种树构建后的基因渗入检验方法示例文档"
+author: "丁颖，纪繁迪，黄华腾"
+output:
+  word_document: default
+---
+
+
+&emsp;&emsp;很多系统发育基因组学分析会在物种树构建之后检验物种间是否存在基因渗入。目前常用的适用于系统发育数据集的几种基因渗入检验方法有：基于位点模式统计量、基于基因树信息的检测方法和PhyloNet。本示例文档用模拟数据来展示这些方法的使用步骤和结果解读。
+
+# **模拟数据生成**
+
+**真实物种分化历史：**我们指定了一棵5个物种--A、B、C、D、E--的物种树，其中E为外群， 物种AC之间有基因渗入，用Newick格式网络树表示为“((((A:4)#H1:2::0.6,B:6):4,((C:4,#H1:0::0.4):4,D:8):2):8,E:18);”。其中(A,C)网络边的遗传比例为0.4，枝长单位为2N（N是有效群体大小）。
+
+**模拟生成基因树：**我们采用ms生成800棵基因树，命令如下：
+
+&emsp;&emsp;ms 5 800 -T -I 5 1 1 1 1 1 -es 2.0 3 0.6 -ej 2.0 4 6 -ej 3.0 3 5 -ej 4.0 6 2 -ej 5.0 5 2 -ej 9.0 2 1
+
+**模拟生成序列：**我们采用Seq-Gen生成长度为1000bp的序列，碱基替换模型使用HKY模型，转换颠换比率设定为3，群体遗传多样性为0.05，命令如下：
+
+&emsp;&emsp;seq-gen -mHKY -l1000 -s0.05 -t3 -q < genetree.tre > sequence.phy
+
+**从模拟序列估计基因树：**采用IQTree,设置参数-m MFP 使其自动测试并选择最优替代模型构建基因树，执行1000次超快自展值，这里使用两个线程的命令如下：
+
+&emsp;&emsp;iqtree -s sequence.phy -m MFP -bb 1000 -nt AUTO -ntmax 2 
+
+&emsp;&emsp;至此，我们得到了模拟生成的序列和基因树。
+
+# **一、基于位点模式统计量的检验方法**
+
+&emsp;&emsp;此类方法统计不同位点模式的出现频率，用这些频率值进行基因渗入检验。
+
+## **1.1 *D* 统计量**
+
+S1: 准备计算*D*统计量的输入文件，包括已标明可变位点和信息位点的基因组序列文件、需要测试的quartet组合（格式如下）；
+
+<br/>{"p4": ["E"], "p3": ["C"],"p2": ["A"],"p1": ["B"]}</br>
+
+S2: 从https://github.com/YingDings/Introgression-Detection-Methods 下载ABBA-BABA.py， 
+
+S3: 执行ABBA-BABA检验，命令为："python ABBA-BABA.py"；  
+
+S4: 读取ABBA-BABA检验的结果文件“result.abba-baba.csv”和物种组合文件“taxa.abba-baba.csv”。
+
+```{r D,warning=FALSE,message=FALSE,global_options=TRUE} 
+options(stringsAsFactors = F)
+outcome_ABBA <- read.csv("result.abba-baba.csv")
+tip_ABBA <- read.csv("taxa.abba-baba.csv")
+quartet<-apply(tip_ABBA[,2:5], 1, function(x){paste0(x,collapse ="")})
+outcome_ABBA$quartet<-quartet
+outcome_ABBA
+```
+
+结果显示ABBA和BABA位点模式的数量分别为8899和7222,且Z-score值大于3，表明物种A与C之间存在基因渗入。
+
+S5: 这里我们提供一个Dplot函数进行结果的可视化。用户可以从https://github.com/YingDings/Introgression-Detection-Methods下载该函数（D-plot.R），并载入R环境；
+
+```{r D-plotfunction,warning=FALSE,message=FALSE,global_options=TRUE}
+source("Introgression-Detection-Methods-main/D-plot.R")
+```
+
+S6: 指定物种树“(((A:6,B:6):4,C:10):8,E:18);”，调用D-plot.R中的Dplot函数可视化结果：
+
+```{r D-plot,warning=FALSE,message=FALSE} 
+tree="(((A:6,B:6):2,C:8):10,E:18);"
+network <- Dplot(tree,Doutcome=outcome_ABBA,taxa=tip_ABBA)
+plot(network,col = "green",lty = 1,lwd = 3)
+```
+
+可视化物种A和C之间的基因渗入。
+
+
+## **1.2 *f* 统计量**
+
+S1: 通过如下公式计算*f* 统计量,同时由1.2节ABBA-BABA检验结果已知ABBA和BABA位点模式的数量分别为8899和7222；
+$$f_{hom} = \frac{S(S_{1},S_{2},S_{3},O)}{S(S_{1},S_{3},S_{3},O)} $$
+
+S2: 计算公式分母，即符合AABA和ABBA位点模式的数量；依次读入800个只包含ABCE四个物种的基因序列文件，并计算符合AABA位点模式的位点数量。
+
+
+```{r aaba,warning=FALSE,message=FALSE}
+library(stringr)
+files<-dir("./data_modify/")
+id<-which(str_detect(files,"phy"))
+locus_num <- 0#AABA位点模式的数量
+for(i in 1:length(id)){
+  data <- read.table(paste0("./data_modify/",files[id[i]]))
+  sites <- data$V2[2:length(data$V2)]
+  sites <- strsplit(as.character(sites),"")#sites为各个位点的碱基
+  for (j in 1:length(sites[[1]])){
+    site <- vector()
+    for (m in 1:length(sites)) {
+      site[m] <- sites[[m]][j]
+    }
+    if(length(unique(site[-4]))==1&length(unique(site))==2){
+      locus_num <- locus_num+1
+    }
+  }
+}
+print(paste("AABA:",locus_num))
+```
+
+结果显示AABA位点模式的数量为60353.
+
+S3: 结合S1和S2的结果，计算*f* 统计量；
+
+```{r f,warning=FALSE,message=FALSE}
+f_statistic <- (8899-7222)/(60353+8899)
+print(f_statistic)
+```
+
+*f* 统计量为0.02421591，不等于零，证明物种A与C之间存在基因渗入，但是和其它研究模拟结果一样，如果不是近期的基因渗入，*f* 统计量存在低估渗入比例的现象。
+
+
+## **1.3 *$D_{FOIL}$* 统计量**
+ 
+S1: 生成*$D_{FOIL}$*检验可识别的计数文件,命令为："python3 fasta2dfoil.py 800locus_combine.fasta --out 800locus_combine.txt --names A,B,C,D,E"；
+
+S2: 将S1生成的800locus_combine.txt作为输入文件，计算*$D_{FOIL}$*，命令为："python dfoil.py --infile 800locus_combine.txt --out Dfoil.txt"；
+
+S3: 分析*$D_{FOIL}$*检验结果。读入结果文件“Dfoil.txt”，通过Pvalue值判断结果是否具有显著性。
+
+```{r dfoil,warning=FALSE,message=FALSE}
+result<-scan("Dfoil.txt",what=character(),sep="\n")
+ele <- unlist(str_split(result,pattern = "\t"))
+result<-matrix(ele,nrow=2,byrow=T)
+colnames(result)<-result[1,]
+result<-as.data.frame(result)
+result<-result[-1,]
+Pvalue <- result[,c("DFO_Pvalue","DIL_Pvalue","DFI_Pvalue")]
+Pvalue
+```
+
+Pvalue为0这一结果显著支持五分类单元物种树中存在基因渗入。
+
+
+# **二、基于基因树信息的检验方法**
+
+&emsp;&emsp;此类方法均针对三个物种的基因树进行检验。为了方便起见，我们这里将数据集中的物种D删除，只保留物种E作为外群。
+
+```{r trees,warning=FALSE,message=FALSE,global_options=TRUE}
+library(ape)
+gtrees=read.tree("800locus_iqtree_treefile_root.tres")#读入有根基因树
+gtrees<-lapply(gtrees, function(gt){keep.tip(gt,c("A","B","C","E"))})#删除所有基因树中的物种D
+class(gtrees)<-"multiPhylo"
+gtrees<-read.tree(text=write.tree(gtrees))
+stree="(((A,B),C),E);"
+sptree<-read.tree(text=stree)
+```
+ 
+
+## **2.1 卡方检验并可视化结果**
+
+在MSC模型下，给定物种树，对所有quartets频数进行多重独立假设检验。
+
+```{r Chi-square,warning=FALSE,message=FALSE,global_options=TRUE}
+library(MSCquartets)
+tnames=c("A","B","C","E")
+QT=quartetTable(gtrees,tnames)
+RQT=quartetTableResolved(QT)
+pTable=quartetTreeTestInd(RQT,"T1",speciestree=stree)
+pTable=quartetStarTestInd(pTable)
+pTable
+```
+
+结果qindex=1表明与物种树拓扑一致的拓扑为12|34，其频率为451；另外两种与物种树不兼容的拓扑频率分别为339和10，拓扑频率相差很大，不符合相等的理论预期。
+
+```{r Chi-square_plot,warning=FALSE,message=FALSE}
+quartetTestPlot(pTable, "T1", alpha=.05, beta=.95)
+```
+
+可视化结果显示有一个quartet频数不符合预期。
+
+
+## **2.2 BLT**
+
+S1: BLT方法目前没有现成的R包，这里我们提供一个blt函数进行该检验。用户可以从https://github.com/YingDings/Introgression-Detection-Methods下载该函数（run_blt.R），并载入R环境；
+
+```{r blt,warning=FALSE,message=FALSE,global_options=TRUE}
+source("Introgression-Detection-Methods-main/run_blt.R")
+```
+
+S2: 调用run_blt.R中的blt函数计算拓扑中两个姐妹物种间的分支长度；
+
+```{r runblt,warning=FALSE,message=FALSE,global_options=TRUE}
+triplet<-c("A","B","C")
+result<-blt(triplet,sptree,gtrees)
+```
+
+S3: 调用run_blt.R中的wilcox.test函数对result结果进行Wilcoxon秩和检验；
+
+```{r runblt-wilcox,warning=FALSE,message=FALSE,global_options=TRUE}
+result_test<-wilcox_test(result,triplet,sptree)#指定只包含物种ABC的物种树上的外群
+result_test
+```
+
+<br/>结果中X_sisBL表示所有三元拓扑中姐妹物种分支长度的平均值；wilcox_XX表示两种类型的拓扑中姐妹物种分支长度的秩和检验的Pvalue，其中Concor表示与物种树一致的拓扑；Discor1表示与物种树拓扑不兼容的拓扑1；Discor2表示与物种树拓扑不兼容的拓扑2。</br>
+
+<br/>结果显示wilcox_Discor1Discor2值远小于0.05，表明discordant1中的姐妹物种分支长度与discordant2的姐妹物种分支长度有显著差别。</br>
+
+S4: 可视化结果。
+
+```{r blt_plot,warning=FALSE,message=FALSE,global_options=TRUE}
+library(ggplot2)
+ggplot(result, aes(x=((branchlength1/treelength)+(branchlength2/treelength))/2, fill=type))+geom_density(alpha=0.7)+scale_fill_manual(values=c("#630000", "#316B83","#FFCE45"))+facet_wrap(~triplet)+xlab("sister branch length")
+```
+
+结果显示discordant2拓扑中姐妹物种间遗传距离小于discordant1拓扑中的姐妹物种间遗传距离，因此discordant2拓扑中姐妹物种间存在基因渗入。
+
+
+## **2.3 QuIBL**
+
+S1: 准备QuIBL输入文件inputfile.txt;
+
+```{r quibl_input,warning=FALSE,message=FALSE,eval=FALSE}
+sink(file="inputfile.txt")
+cat(paste0("[Input]","\n"))
+cat(paste0("treefile: genetree.tres","\n"))#genetree.tres为基因树文件（不同文件夹须加路径）
+cat(paste0("numdistributions: 2","\n"))
+cat(paste0("likelihoodthresh: 0.01","\n"))#似然值变化阈值
+cat(paste0("numsteps: 10","\n"))
+cat(paste0("gradascentscalar: 0.5","\n"))
+cat(paste0("totaloutgroup: E","\n"))#指定外群为E
+cat(paste0("multiproc: True","\n"))
+cat(paste0("maxcores:1000","\n"))
+cat(paste0("[Output]","\n"))
+cat(paste0("OutputPath: result.csv","\n"))#result.csv为输出文件名
+sink()
+```
+
+S2: 执行QuIBL方法，命令为："python QuIBL.py inputfile.txt"；
+
+S3: 分析QuIBL结果。读入结果文件，计算两种分布模型的BIC值差deltaBIC，根据其结果判断是否仅存在ILS或同时存在ILS与Introgression。
+
+```{r quibl,warning=FALSE,message=FALSE}
+result<-read.csv("result_quibl.csv")
+result$deltaBIC<-result$BIC2Dist-result$BIC1Dist
+result$type<-""
+type=c("concordant","discordant1","discordant2")
+t<-drop.tip(sptree,"E")
+out<-t$tip.label[min(t$edge[t$edge[,1]==length(t$tip.label)+1,2])]
+temp<-seq(from=1,to=nrow(result),by=3)
+w<-which(result$outgroup[temp[1]:(temp[1]+2)]==out)
+result$type[temp[1]:(temp[1]+2)][w]<-type[1]
+result$type[temp[1]:(temp[1]+2)][-w]<-type[2:3]
+result$result<-ifelse(result$type=="concordant" & result$deltaBIC < -30 ,"Concordant",ifelse(result$deltaBIC< -30 & result$type!="concordant","ILS+Introgression",ifelse(result$type=="concordant" & result$deltaBIC > -30,"Extreme ILS","ILS")))
+result
+```
+
+结果显示B为外群时的三元拓扑为ILS+Introgression。
+
+
+# **三、PhyloNet**
+
+S1: 准备PhyloNet输入文件。文件格式为Nexus，里面包括两个模块：含基因树的树模块和执行PhyloNet的命令模块；
+```{r phylonet,warning=FALSE,message=FALSE,eval=FALSE}
+gts<-readLines("800locus_iqtree_treefile_root.tres")#读入所有有根基因树
+gts<-paste0("Tree gt",1:800,"=",gts)
+#write file
+sink("phylonet_InferNetwork_MPL_input.nex")
+cat(paste0("#NEXUS","\n","\n"))
+cat(paste0("BEGIN TREES;","\n","\n"))
+cat(paste0(gts,"\n"))#写入基因树
+cat(paste0("\n","END;","\n"))
+cat(paste0("\n", "BEGIN PHYLONET;","\n","\n"))
+cat("InferNetwork_MPL (all) 1 -pl 20 -di resultOutputFile phylonet_InferNetwork_MPL_out.tres;")
+cat(paste0("\n","\n","END;","\n"))
+sink()
+```
+
+S2: 执行PhyloNet命令："java -jar PhyloNet_3.8.2.jar phylonet_InferNetwork_MPL_input.nex"
+
+S3: 读取PhyloNet结果，用R可视化似然值最大的网络树。
+
+```{r phylonet_plot,warning=FALSE,message=FALSE}
+result<-readLines("phylonet_InferNetwork_MPL_out.tres")
+network<-result[3]
+network
+net<-read.evonet(text=network)
+plot(net)
+nodelabels(text=net$node.label,frame = "none")
+```
+
+结果显示物种A与C存在基因渗入，通过网络树Newick格式可以看出两者间的遗传比例为40%。
+
+
