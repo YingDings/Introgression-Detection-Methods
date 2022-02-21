@@ -14,4 +14,4 @@ example.Rmd: This is a example code.
 
 example.pdf: This is a example file.
 
-### How to cite: Ding, Y., Ji, F. D. and Huang, H. T. (2022). Methods of Detecting Introgression after Species-tree Construction. Bio-101: e1010678. DOI: 10.21769/BioProtoc.1010678.
+##### How to cite: Ding, Y., Ji, F. D. and Huang, H. T. (2022). Methods of Detecting Introgression after Species-tree Construction. Bio-101: e1010678. DOI: 10.21769/BioProtoc.1010678.
