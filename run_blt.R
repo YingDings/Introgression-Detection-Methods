@@ -62,7 +62,9 @@ wilcox_test<-function(result,triplet,sptree){
   # c(wilcox_test1,wilcox_test2,wilcox_test3)
   #chi=chisq.test(discor_count$Freq)$p.value
 
-  re<-data.frame(triplet=paste(triplet,collapse = "_"),
+  re<-data.frame(triplet=paste(triplet,collapse = "_"), sp_out=sptre_outgroup,
+                 dis1_out=unique(result$outgroup[result$type=="discordant1"]),
+                 dis2_out=unique(result$outgroup[result$type=="discordant2"]),             
                  Concor_sisBL=mean(concor_sbl),Discor1_sisBL=mean(discor1_sbl),Discor2_sisBL=mean(discor2_sbl),
                  wilcox_ConcorDiscor1=wilcox_test1,wilcox_ConcorDiscor2=wilcox_test2,wilcox_Discor1Discor2=wilcox_test3)
 
