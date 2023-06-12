@@ -56,9 +56,9 @@ wilcox_test<-function(result,triplet,sptree){
   discor1_sbl<-result$sbl[result$type=="discordant1"]
   discor2_sbl<-result$sbl[result$type=="discordant2"]
 
-  wilcox_test1<-wilcox.test(concor_sbl,discor1_sbl)$p.value
-  wilcox_test2<-wilcox.test(discor1_sbl,discor2_sbl)$p.value
-  wilcox_test3<-wilcox.test(concor_sbl,discor2_sbl)$p.value
+  wilcox_test1<-wilcox.test(concor_sbl,discor1_sbl)$p.value  
+  wilcox_test2<-wilcox.test(concor_sbl,discor2_sbl)$p.value
+  wilcox_test3<-wilcox.test(discor1_sbl,discor2_sbl)$p.value
   # c(wilcox_test1,wilcox_test2,wilcox_test3)
   #chi=chisq.test(discor_count$Freq)$p.value
 
